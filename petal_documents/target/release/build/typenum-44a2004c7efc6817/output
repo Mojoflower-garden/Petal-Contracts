@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build/main.rs
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/Users/lukasstateczny/Desktop/Mojoflower/Petal-Contracts/petal_documents/target/release/build/typenum-44a2004c7efc6817/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/Users/lukasstateczny/Desktop/Mojoflower/Petal-Contracts/petal_documents/target/release/build/typenum-44a2004c7efc6817/out/op.rs

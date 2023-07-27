@@ -1,0 +1,10 @@
+/Users/lukasstateczny/Desktop/Mojoflower/soroban-examples/token/target/debug/deps/pkcs8-75dd4c3b862a2d94.rmeta: /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/lib.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/error.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/private_key_info.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/traits.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/version.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/../README.md
+
+/Users/lukasstateczny/Desktop/Mojoflower/soroban-examples/token/target/debug/deps/pkcs8-75dd4c3b862a2d94.d: /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/lib.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/error.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/private_key_info.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/traits.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/version.rs /Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/../README.md
+
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/lib.rs:
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/error.rs:
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/private_key_info.rs:
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/traits.rs:
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/version.rs:
+/Users/lukasstateczny/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pkcs8-0.10.2/src/../README.md:

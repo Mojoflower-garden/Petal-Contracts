@@ -1,0 +1,1 @@
+/Users/lukasstateczny/Desktop/Mojoflower/Petal-Contracts/petal_documents/target/wasm32-unknown-unknown/release/petal_documents.wasm: /Users/lukasstateczny/Desktop/Mojoflower/Petal-Contracts/petal_documents/src/lib.rs
