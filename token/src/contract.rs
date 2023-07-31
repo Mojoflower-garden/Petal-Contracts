@@ -7,8 +7,8 @@ use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::event;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 use crate::storage_types::INSTANCE_BUMP_AMOUNT;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol, symbol_short, U256, Map};
 use crate::custom_token_metadata::{CustomTokenMetadata};
-use soroban_sdk::{contract, contractimpl, Address, Env, String, U256, Symbol, symbol_short, Map};
 
 pub trait TokenTrait {
     fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String, token_uri: String);
@@ -35,7 +35,11 @@ pub trait TokenTrait {
 
     fn set_authorized(e: Env, id: Address, authorize: bool);
 
-    fn mint(e: Env, to: Address, token_id: U256) -> bool;
+    fn mint(e: Env, to: Address, token_id: U256);
+
+    fn owner_of(e: Env, token_id: U256) -> Address;
+
+    fn exists(e: Env, token_id: U256) -> bool;
 
     fn set_admin(e: Env, new_admin: Address);
 
@@ -44,10 +48,6 @@ pub trait TokenTrait {
     fn name(e: Env) -> String;
 
     fn symbol(e: Env) -> String;
-
-    // fn ownerOf(e: Env, token_id: U256) -> Option<Address>;
-
-    fn exists(e: Env, token_id: U256) -> bool;
 }
 
 fn check_nonnegative_amount(amount: i128) {
@@ -60,10 +60,12 @@ fn check_nonnegative_amount(amount: i128) {
 pub struct Token;
 
 const OWNERS: Symbol = symbol_short!("owners");
+const APPROVALS: Symbol = symbol_short!("approvals");
+const OWNED_TOKEN_COUNT: Symbol = symbol_short!("tCount");
+const OPERATOR_APPROVAL: Symbol = symbol_short!("opApprov");
 
 #[contractimpl]
 impl TokenTrait for Token {
-
     fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String, token_uri: String) {
         if has_administrator(&e) {
             panic!("already initialized")
@@ -184,31 +186,51 @@ impl TokenTrait for Token {
         event::set_authorized(&e, admin, id, authorize);
     }
 
-    fn mint(e: Env, to: Address, token_id: U256) -> bool {
+    fn mint(e: Env, to: Address, token_id: U256) {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        
-        if Self::exists(e, token_id) {
-            return true;
+        if !Self::exists(e, token_id) {
+            panic!("Token already minted!")
         }
-        return false;
-        // // e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
 
-        // // receive_balance(&e, to.clone(), amount);
-        // // event::mint(&e, admin, to);
+        // env.storage().instance().set(&DataKey::Signer(signer), &());
+        // _owners[tokenId] = to;
+
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        event::mint(&e, admin, to, token_id);
+    }
+
+    fn owner_of(e: Env, token_id: U256) -> Address {
+        let owners: Option<Map<U256, Address>> = e.storage().instance().get(&OWNERS).unwrap();
+        match owners {
+            Some(v) => {
+              v.get(token_id).expect("Address does not exist for given token id").clone()
+            },
+            None => {
+                panic!("Did not find the owner");
+            },
+          }
     }
 
     fn exists(e: Env, token_id: U256) -> bool {
-        return tru
-        // let owner: Option<Address> = Self::ownerOf(e, token_id);
-        // owner.is_some()
-    }
-
-    fn ownerOf(e: Env, token_id: U256) -> Address {
-        let owners: Option<Map<u32, Address>> = e.storage().instance().get(&OWNERS).unwrap();
-
-        // owners.get(token_id);
+        let owners: Option<Map<U256, Address>> = e.storage().instance().get(&OWNERS).unwrap();
+        match owners {
+            Some(v) => {
+                let address = v.get(token_id);
+                match address {
+                    Some(v) => {
+                        true
+                    },
+                    None => {
+                        false
+                    }
+                }
+            },
+            None => {
+                false
+            },
+          }
     }
 
     fn set_admin(e: Env, new_admin: Address) {

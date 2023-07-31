@@ -14,6 +14,7 @@ use soroban_sdk::{
     U256,
     log,
     Val,
+    Map
 };
 
 mod token_contract {
@@ -56,16 +57,13 @@ impl PetalDocuments {
     pub fn init(env: Env, addresses: Vec<Val>) {
         log!(&env, "TEST: ", addresses);
         env.storage().instance().set(&SIGNERS, &addresses);
+
     }
     pub fn value(env: Env) -> Vec<Val> {
         let current_addresses: Option<Vec<Val>> = env.storage().instance().get(&SIGNERS);
         log!(&env, "GETTING ADDRESSES: ", current_addresses);
         current_addresses.unwrap()
         // env.storage().instance().get(&SIGNERS).unwrap()
-    }
-
-    pub fn test(to: Address) {
-        to.
     }
 
     // pub fn sign_document(env: Env, user: Address, signature: Bytes, payload: SignedMessage, ) {
