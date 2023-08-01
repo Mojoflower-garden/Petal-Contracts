@@ -101,7 +101,7 @@ impl PetalDocuments {
         let mut inner_doc_signings: Map<Address, SignatureStatus> = doc_signings.get(token_id).unwrap_or(Map::new(&e));
 
         for signer in signers.iter() {
-            inner_doc_signings.set(signer, SignatureStatus::Waiting);
+            let new_inner_doc_singins = inner_doc_signings.set(signer, SignatureStatus::Waiting);
             doc_signings.set(token_id, inner_doc_signings);
         };
 
