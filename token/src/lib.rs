@@ -9,5 +9,6 @@ mod metadata;
 mod storage_types;
 mod test;
 mod custom_token_metadata;
+mod erc_functions;
 
 pub use crate::contract::TokenClient;

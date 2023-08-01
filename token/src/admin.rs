@@ -9,7 +9,8 @@ pub fn has_administrator(e: &Env) -> bool {
 
 pub fn read_administrator(e: &Env) -> Address {
     let key = DataKey::Admin;
-    e.storage().instance().get(&key).unwrap()
+    e.storage().instance().get(&key).unwrap_or_else(|| panic!("Admin not found"))
+    // e.storage().instance().get(&key).unwrap()
 }
 
 pub fn write_administrator(e: &Env, id: &Address) {

@@ -1,3 +1,5 @@
+#![no_std]
+
 use soroban_sdk::{
     contract, 
     contractimpl, 
@@ -14,10 +16,10 @@ use soroban_sdk::{
     U256,
     log,
     Val,
-    Map
+    Map,
 };
 
-mod token_contract {
+mod erc721 {
     soroban_sdk::contractimport!(
         file = "../token/target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
     );
@@ -38,32 +40,72 @@ pub enum SignatureStatus {
 #[derive(Clone, Debug)]
 #[contracttype]
 pub struct SignedMessage {
-    pub deadline: U256,
+    pub deadline: u64,
     pub description: String,
     pub document_hash: BytesN<32>,
     pub document_uri: String,
     pub signer: Address,
     pub status: SignatureStatus,
-    pub token_id: U256,
-    pub nonce: U256,
+    pub token_id: u32,
+    pub nonce: u32,
 }
 
-const SIGNERS: Symbol = symbol_short!("addresses");
-const DOCUMENT_SIGNINGS: Symbol = symbol_short!("doc_sign");
+const SIGNERS: Symbol = symbol_short!("SIGNERS");
+const T2DHASH: Symbol = symbol_short!("T2DHASH");
+const DEADLINES: Symbol = symbol_short!("DEADLINES");
+const DOCSIGN: Symbol = symbol_short!("DOCSIGN");
 const CREACTION_FEE: Symbol = symbol_short!("crea_fee");
 
 #[contractimpl]
 impl PetalDocuments {
-    pub fn init(env: Env, addresses: Vec<Val>) {
-        log!(&env, "TEST: ", addresses);
-        env.storage().instance().set(&SIGNERS, &addresses);
+    // pub fn init(env: Env, addresses: Vec<Val>) {
 
+    //     log!(&env, "TEST: ", addresses);
+    //     env.storage().instance().set(&SIGNERS, &addresses);
+
+    // }
+    // pub fn value(env: Env) -> Vec<Val> {
+    //     let current_addresses: Option<Vec<Val>> = env.storage().instance().get(&SIGNERS);
+
+    //     log!(&env, "GETTING ADDRESSES: ", current_addresses);
+    //     // current_addresses.unwrap()
+    //     env.storage().instance().get(&SIGNERS).unwrap_or_else(|| panic!("Admin not found"));
+    // }
+
+    // pub fn test(env: Env, to: Vec<Address>) {
+
+    //     // env.storage().instance().set(&SIGNERS, hehu);
+    // }
+
+    pub fn getSigners(e: Env) -> Map<u32, Address> {
+        let signers: Map<u32, Address> = e.storage().instance().get(&SIGNERS).unwrap_or(Map::new(&e));
+        signers
     }
-    pub fn value(env: Env) -> Vec<Val> {
-        let current_addresses: Option<Vec<Val>> = env.storage().instance().get(&SIGNERS);
-        log!(&env, "GETTING ADDRESSES: ", current_addresses);
-        current_addresses.unwrap()
-        // env.storage().instance().get(&SIGNERS).unwrap()
+
+    fn safeMint(e: Env, erc721_address: Address, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: BytesN<32>, deadline: u64) -> u32 {
+        if signers.is_empty() {
+            panic!("Must have some signers for each document");
+        }
+        log!(&e, "Hello");
+        let client = erc721::Client::new(&e, &erc721_address);
+        client.mint(&to, &token_id);
+        client.set_token_uri(&token_id, &meta_uri);
+
+        let mut token_to_doc_hashes: Map<u32, BytesN<32>> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+        token_to_doc_hashes.set(token_id, document_hash);
+
+        let mut doc_signing_deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
+        doc_signing_deadlines.set(token_id, deadline);
+        
+        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let mut inner_doc_signings: Map<Address, SignatureStatus> = doc_signings.get(token_id).unwrap_or(Map::new(&e));
+
+        for signer in signers.iter() {
+            inner_doc_signings.set(signer, SignatureStatus::Waiting);
+            doc_signings.set(token_id, inner_doc_signings);
+        };
+
+        token_id
     }
 
     // pub fn sign_document(env: Env, user: Address, signature: Bytes, payload: SignedMessage, ) {

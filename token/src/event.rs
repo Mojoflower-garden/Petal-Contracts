@@ -1,4 +1,4 @@
-use soroban_sdk::{symbol_short, Address, Env, Symbol};
+use soroban_sdk::{symbol_short, Address, Env, Symbol, U256};
 
 pub(crate) fn approve(e: &Env, from: Address, to: Address, amount: i128, expiration_ledger: u32) {
     let topics = (Symbol::new(e, "approve"), from, to);
@@ -10,9 +10,9 @@ pub(crate) fn transfer(e: &Env, from: Address, to: Address, amount: i128) {
     e.events().publish(topics, amount);
 }
 
-pub(crate) fn mint(e: &Env, admin: Address, to: Address, amount: i128) {
-    let topics = (symbol_short!("mint"), admin, to);
-    e.events().publish(topics, amount);
+pub(crate) fn mint(e: &Env, admin: Address, to: Address, token_id: u32) {
+    let topics = (symbol_short!("mint"), admin, token_id);
+    e.events().publish(topics, token_id);
 }
 
 pub(crate) fn clawback(e: &Env, admin: Address, from: Address, amount: i128) {
