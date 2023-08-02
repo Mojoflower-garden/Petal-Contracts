@@ -36,7 +36,7 @@ pub trait TokenTrait {
 
     fn set_authorized(e: Env, id: Address, authorize: bool);
 
-    fn mint(e: Env, to: Address, token_id: u32);
+    fn mint(e: Env, token_id: u32, to: Address);
 
     fn set_admin(e: Env, new_admin: Address);
 
@@ -48,13 +48,13 @@ pub trait TokenTrait {
 
     fn symbol(e: Env) -> String;
 
-    fn test(e: Env);
-
     fn get_owners(e: Env) -> Map<u32, Address>;
 
     fn set_owners(e: Env, token_id: u32, owner: Address);
 
     fn set_token_uri(e: Env, token_id: u32, token_uri: String);
+
+    fn require_minted(e: Env, token_id: u32) -> bool;
 }
 
 fn check_nonnegative_amount(amount: i128) {
@@ -206,33 +206,40 @@ impl TokenTrait for Token {
         event::set_authorized(&e, admin, id, authorize);
     }
 
-    fn test(e:Env) {
-        log!(&e, "Hello 1");
+    fn require_minted(e: Env, token_id: u32) -> bool {
+        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        if exists(&e, token_id, &owners) == true {
+            return true
+        } 
+        return false
     }
 
-    fn mint(e: Env, to: Address, token_id: u32) {
-        let admin = read_administrator(&e);
-        admin.require_auth();
-
-        log!(&e, "Hello 1");
-
+    fn mint(e: Env, token_id: u32, to: Address) {
+        // let admin = read_administrator(&e);
+        // admin.require_auth();
         let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        log!(&e, "Owners {}", owners);
 
-        log!(&e, "Hello 2 {}", owners);
-
-        if !exists(&e, token_id, &owners) {
+        if exists(&e, token_id, &owners) == true {
             panic!("Token already minted!");
         }
+        log!(&e, "Token does not exists {}", token_id);
+
+        let cloned_to = to.clone();
 
         owners.set(token_id, to);
+        log!(&e, "Owners set locally {}", owners);
+
         e.storage().instance().set(&OWNERS, &owners);
+        log!(&e, "Owners set instance {}", owners);
 
         e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
-        // event::mint(&e, admin, to, token_id);
+        event::mint(&e, &cloned_to, token_id);
     }
 
     fn get_owners(e: Env) -> Map<u32, Address> {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
         log!(&e, "Owners {}", owners);
         owners
     }
@@ -273,12 +280,11 @@ impl TokenTrait for Token {
     fn set_token_uri(e: Env, token_id: u32, token_uri: String) {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
 
-        if !exists(&e, token_id, &owners) {
+        if exists(&e, token_id, &owners) == true {
             panic!("Token already minted!");
         }
 
         let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
-
         token_uris.set(token_id, token_uri);
     }
 }
@@ -287,19 +293,23 @@ impl TokenTrait for Token {
 // 1. Initialize with admin
 //
 
+// ------------> CURRENT CONTRACT ID = CB7OSKDWKBCFNW2CEQI67RFSGWLOIS3EKAXIQDJSIWMPZLDMJ7SHSPRK --------------------
+
 // soroban contract build --profile release-with-logs
 
 // soroban contract deploy \
 //     --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
 //     --id b
 // soroban contract deploy \
-//     --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
+//     --wasm target/wasm32-unknown-unknown/release/soroban_token_contract.wasm \
 //     --source juico \
 //     --network standalone
 
 // soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
 // --id CCC7BOTWWO5LDI7Z2DOLGGSRWYHBG5IBIR7FI4F36JNS6DLBBZM2DNMN \
+//     --source juico \
+//     --network standalone \
 //     -- \
 //     initialize \
 //     --admin GDCBSTFJSOIN5FWZ22AMOBT56AILRZ3Z2UTL6GDYG4OYRWDAWOFA5ZT4 \
@@ -307,15 +317,17 @@ impl TokenTrait for Token {
 
 // soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
-// --id CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N \
+// --id CAKDU2QQU7YYDYZWHRCRE23IJNANUACGMSIEAN74ATSUQIHU4AERSAYF \
+//     --source juico \
+//     --network standalone \
 //     -- \
 //     mint \
-//     --to GA3YIJVTHQIH3BXKQHUHAYHBZ7Z5NYPPWIXXT3OHVQO5YE3RKT5ASAFC \
-//     --token_id 1111
+//     --token_id 4 \
+//     --to GA3YIJVTHQIH3BXKQHUHAYHBZ7Z5NYPPWIXXT3OHVQO5YE3RKT5ASAFC
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
-// --id CCB56YW6GSBHZRA2H5YNV5HY2ZC3CYYH3XTIEYVQI5HT4PAEY5VTN3DP \
+// --id CCYALRIXFRJXI4YRQCMN4YMNQZALNPAZLEGGJSAIP6I2CELT33L6WF4D \
 //     --source juico \
 //     --network standalone \
 //     -- \
@@ -325,7 +337,7 @@ impl TokenTrait for Token {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
-// --id CCC7BOTWWO5LDI7Z2DOLGGSRWYHBG5IBIR7FI4F36JNS6DLBBZM2DNMN \
+// --id CAKDU2QQU7YYDYZWHRCRE23IJNANUACGMSIEAN74ATSUQIHU4AERSAYF \
 //     --source juico \
 //     --network standalone \
 //     -- \

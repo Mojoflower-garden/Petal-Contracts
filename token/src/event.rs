@@ -10,8 +10,8 @@ pub(crate) fn transfer(e: &Env, from: Address, to: Address, amount: i128) {
     e.events().publish(topics, amount);
 }
 
-pub(crate) fn mint(e: &Env, admin: Address, to: Address, token_id: u32) {
-    let topics = (symbol_short!("mint"), admin, token_id);
+pub(crate) fn mint(e: &Env, to: &Address, token_id: u32) {
+    let topics = (symbol_short!("mint"), token_id);
     e.events().publish(topics, token_id);
 }
 
