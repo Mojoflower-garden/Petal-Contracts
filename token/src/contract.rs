@@ -215,8 +215,11 @@ impl TokenTrait for Token {
     }
 
     fn mint(e: Env, token_id: u32, to: Address) {
-        // let admin = read_administrator(&e);
-        // admin.require_auth();
+        // SOL: require(to != address(0), "ERC721: mint to the zero address");
+        // CHECK IF ADDRESS IS NUL ADDRESS in soroban
+
+        // New Token id should be incremented by 1 and not injected as param.
+
         let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
         log!(&e, "Owners {}", owners);
 
@@ -280,12 +283,15 @@ impl TokenTrait for Token {
     fn set_token_uri(e: Env, token_id: u32, token_uri: String) {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
 
-        if exists(&e, token_id, &owners) == true {
-            panic!("Token already minted!");
+        if exists(&e, token_id, &owners) == false {
+            panic!("ERC721URIStorage: URI set of nonexistent token");
         }
 
         let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
         token_uris.set(token_id, token_uri);
+
+        e.storage().instance().set(&URIS, &token_uris);
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
     }
 }
 

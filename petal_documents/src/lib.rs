@@ -149,6 +149,7 @@ impl PetalDocuments {
         };
 
         // EQUIVALENT TO SOLIDITY
+        // THIS MEANS THAT USE HAVE SEEN THE CONTRACT AND DATA AND SIGNS IT TO AGREE -> THERE IS NO STELLAR SOROBAN EQUIVALENT TO THIS STANDARD
         // bytes32 digest = _hashTypedDataV4(
 		// 	keccak256(
 		// 		abi.encode(
@@ -173,21 +174,28 @@ impl PetalDocuments {
         if e.ledger().timestamp() > payload.deadline {
             panic!("Signature expired")
         };
-        let clone_singer_2 = clone_signer.clone();
-        let clone_singer_3 = clone_singer_2.clone();
+        let clone_signer_2 = clone_signer.clone();
+        let clone_signer_3 = clone_signer_2.clone();
         let mut signature_nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
         let last_nonce = signature_nonces.get(clone_signer).unwrap_or(0);
         if signature_nonces.is_empty() {
-            signature_nonces.set(clone_singer_2, last_nonce);
+            signature_nonces.set(clone_signer_2, last_nonce);
         } else {
-            signature_nonces.set(clone_singer_2, last_nonce + 1);
+            signature_nonces.set(clone_signer_2, last_nonce + 1);
         }
 
-        doc_signings.get(payload.token_id).unwrap().set(clone_singer_3, payload.status);
+        doc_signings.get(payload.token_id).unwrap().set(clone_signer_3, payload.status);
         e.storage().instance().set(&DOCSIGN, &doc_signings);
+        e.storage().instance().bump(34560);
     }
 
     pub fn safe_mint(e: Env, erc721_address: Address, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: BytesN<32>, deadline: u64) -> u32 {
+        // IMPLEMENT THIS LIKE IN SOLIDITY PETAL DOCUMENTS CONTRACT
+        //		require(
+		// 	msg.value >= creationFee || owner() == msg.sender,
+		// 	'Creation fee not met'
+		// );
+
         if signers.is_empty() {
             panic!("Must have some signers for each document");
         }
@@ -203,14 +211,18 @@ impl PetalDocuments {
         doc_signing_deadlines.set(token_id, deadline);
         
         let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
-        let mut inner_doc_signings: Map<Address, SignatureStatus> = doc_signings.get(token_id).unwrap_or(Map::new(&e));
+        let mut inner_doc_signings: Map<Address, SignatureStatus> = Map::new(&e);
 
         for signer in signers.iter() {
             inner_doc_signings.set(signer, SignatureStatus::Waiting);
-            let cloned_inner_doc_signings = inner_doc_signings.clone();
-            doc_signings.set(token_id, cloned_inner_doc_signings);
         };
+        doc_signings.set(token_id, inner_doc_signings);
 
+        e.storage().instance().set(&T2DHASH, &token_to_doc_hashes);
+        e.storage().instance().set(&DEADLINES, &doc_signing_deadlines);
+        e.storage().instance().set(&DOCSIGN, &doc_signings);
+
+        e.storage().instance().bump(34560);
         token_id
     }
 
