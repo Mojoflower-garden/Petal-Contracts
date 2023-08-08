@@ -299,7 +299,7 @@ impl TokenTrait for Token {
 // 1. Initialize with admin
 //
 
-// ------------> CURRENT CONTRACT ID = CB7OSKDWKBCFNW2CEQI67RFSGWLOIS3EKAXIQDJSIWMPZLDMJ7SHSPRK --------------------
+// ------------> CURRENT CONTRACT ID = CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT --------------------
 
 // soroban contract build --profile release-with-logs
 
@@ -308,7 +308,7 @@ impl TokenTrait for Token {
 //     --id b
 // soroban contract deploy \
 //     --wasm target/wasm32-unknown-unknown/release/soroban_token_contract.wasm \
-//     --source juico \
+//     --source nalnir \
 //     --network standalone
 
 // soroban contract invoke \

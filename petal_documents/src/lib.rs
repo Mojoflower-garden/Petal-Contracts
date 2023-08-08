@@ -1,11 +1,21 @@
 #![no_std]
 
+mod storage_types;
+use crate::storage_types::INSTANCE_BUMP_AMOUNT;
+
+mod erc_functions;
+use crate::erc_functions::{exists};
+
+mod event;
+
+mod admin;
+use crate::admin::{has_administrator, read_administrator, write_administrator};
+
 use soroban_sdk::{
     contract, 
     contractimpl, 
     contracttype, 
     symbol_short, 
-    vec, 
     Env, 
     Symbol, 
     Vec, 
@@ -13,17 +23,16 @@ use soroban_sdk::{
     String, 
     BytesN, 
     Bytes,
-    U256,
     log,
     Val,
     Map,
 };
 
-mod erc721 {
-    soroban_sdk::contractimport!(
-        file = "../token/target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
-    );
-}
+// mod erc721 {
+//     soroban_sdk::contractimport!(
+//         file = "../token/target/wasm32-unknown-unknown/release/soroban_token_contract.wasm"
+//     );
+// }
 
 #[contract]
 pub struct PetalDocuments;
@@ -42,13 +51,16 @@ pub enum SignatureStatus {
 pub struct SignedMessage {
     pub deadline: u64,
     pub description: String,
-    pub document_hash: BytesN<32>,
+    pub document_hash: String,
     pub document_uri: String,
     pub signer: Address,
     pub status: SignatureStatus,
     pub token_id: u32,
     pub nonce: u32,
 }
+
+const OWNERS: Symbol = symbol_short!("OWNERS");
+const URIS: Symbol = symbol_short!("URIS");
 
 const NONCES: Symbol = symbol_short!("NONCES");
 const T2DHASH: Symbol = symbol_short!("T2DHASH");
@@ -59,29 +71,18 @@ const CREACTION_FEE: Symbol = symbol_short!("crea_fee");
 
 #[contractimpl]
 impl PetalDocuments {
-    // pub fn init(env: Env, addresses: Vec<Val>) {
+    pub fn init(e: Env, admin: Address, token_id: u32) {
+        if has_administrator(&e) {
+            panic!("already initialized")
+        }
 
-    //     log!(&env, "TEST: ", addresses);
-    //     env.storage().instance().set(&SIGNERS, &addresses);
+        write_administrator(&e, &admin);
+    }
 
-    // }
-    // pub fn value(env: Env) -> Vec<Val> {
-    //     let current_addresses: Option<Vec<Val>> = env.storage().instance().get(&SIGNERS);
-
-    //     log!(&env, "GETTING ADDRESSES: ", current_addresses);
-    //     // current_addresses.unwrap()
-    //     env.storage().instance().get(&SIGNERS).unwrap_or_else(|| panic!("Admin not found"));
-    // }
-
-    // pub fn test(env: Env, to: Vec<Address>) {
-
-    //     // env.storage().instance().set(&SIGNERS, hehu);
-    // }
-    // soroban contract install --wasm ../token/target/wasm32-unknown-unknown/release/soroban_token_contract.wasm
-
-    pub fn sign_document(e: Env, erc721_address: Address, user: Address, signature: Bytes, payload: SignedMessage) {
-        let client = erc721::Client::new(&e, &erc721_address);
-        let is_token_minted: bool = client.require_minted(&payload.token_id);
+    pub fn sign_document(e: Env, erc721_address: Address, user: Address, signature: BytesN<64>, message: Bytes, payload: SignedMessage) {
+        // let client = erc721::Client::new(&e, &erc721_address);
+        // let is_token_minted: bool = client.require_minted(&payload.token_id);
+        let is_token_minted: bool = Self::require_minted(&e, payload.token_id);
         if is_token_minted == false {
             panic!("ERC721: invalid token ID")
         }
@@ -113,7 +114,7 @@ impl PetalDocuments {
             }
         };
 
-        let token_to_doc_hashes: Map<u32, BytesN<32>> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+        let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
         if token_to_doc_hashes.is_empty() {
             panic!("Document hashes is empty")
         }
@@ -147,6 +148,10 @@ impl PetalDocuments {
                 panic!("Deadline not found")
             }
         };
+        
+        
+
+        // e.crypto().ed25519_verify(&user, &message, &signature);
 
         // EQUIVALENT TO SOLIDITY
         // THIS MEANS THAT USE HAVE SEEN THE CONTRACT AND DATA AND SIGNS IT TO AGREE -> THERE IS NO STELLAR SOROBAN EQUIVALENT TO THIS STANDARD
@@ -189,7 +194,13 @@ impl PetalDocuments {
         e.storage().instance().bump(34560);
     }
 
-    pub fn safe_mint(e: Env, erc721_address: Address, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: BytesN<32>, deadline: u64) -> u32 {
+    pub fn testVerifySignature(e: Env, pubKey: BytesN<32>, message: Bytes, signature: BytesN<64> ) -> u32 {
+        e.crypto().ed25519_verify(&pubKey, &message, &signature);
+        log!(&e, "Passed this point. Message Verified!");
+        3
+    }
+
+    pub fn safe_mint(e: Env, erc721_address: Address, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: String, deadline: u64) -> u32 {
         // IMPLEMENT THIS LIKE IN SOLIDITY PETAL DOCUMENTS CONTRACT
         //		require(
 		// 	msg.value >= creationFee || owner() == msg.sender,
@@ -200,11 +211,14 @@ impl PetalDocuments {
             panic!("Must have some signers for each document");
         }
         log!(&e, "Hello");
-        let client = erc721::Client::new(&e, &erc721_address);
-        client.mint(&token_id, &to);
-        client.set_token_uri(&token_id, &meta_uri);
+        // let client = erc721::Client::new(&e, &erc721_address);
+        // client.mint(&token_id, &to);
+        // client.set_token_uri(&token_id, &meta_uri);
 
-        let mut token_to_doc_hashes: Map<u32, BytesN<32>> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+        Self::mint(&e, token_id, to);
+        Self::set_token_uri(&e, token_id, meta_uri);
+
+        let mut token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
         token_to_doc_hashes.set(token_id, document_hash);
 
         let mut doc_signing_deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
@@ -222,12 +236,78 @@ impl PetalDocuments {
         e.storage().instance().set(&DEADLINES, &doc_signing_deadlines);
         e.storage().instance().set(&DOCSIGN, &doc_signings);
 
-        e.storage().instance().bump(34560);
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
         token_id
     }
 
-    pub fn get_td_hashes(e: Env) -> Map<u32, BytesN<32>> {
-        let token_to_doc_hashes: Map<u32, BytesN<32>> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+    fn mint(e: &Env, token_id: u32, to: Address) {
+        // New Token id should be incremented by 1 and not injected as param.
+
+        let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        log!(&e, "Owners {}", owners);
+
+        if exists(&e, token_id, &owners) == true {
+            panic!("Token already minted!");
+        }
+        log!(&e, "Token does not exists {}", token_id);
+
+        let cloned_to = to.clone();
+
+        owners.set(token_id, to);
+        log!(&e, "Owners set locally {}", owners);
+
+        e.storage().instance().set(&OWNERS, &owners);
+        log!(&e, "Owners set instance {}", owners);
+
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        event::mint(&e, &cloned_to, token_id);
+    }
+
+    fn set_token_uri(e: &Env, token_id: u32, token_uri: String) {
+        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+
+        if exists(&e, token_id, &owners) == false {
+            panic!("ERC721URIStorage: URI set of nonexistent token");
+        }
+
+        let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
+        token_uris.set(token_id, token_uri);
+
+        e.storage().instance().set(&URIS, &token_uris);
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+    }
+
+
+    fn require_minted(e: &Env, token_id: u32) -> bool {
+        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        if exists(&e, token_id, &owners) == true {
+            return true
+        } 
+        return false
+    }
+
+    pub fn get_admin(e: Env) -> Address {
+        let admin = read_administrator(&e);
+        admin
+    }
+
+    pub fn get_nonces(e: Env) -> Map<Address, u32> {
+        let nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
+        nonces
+    }
+
+    pub fn get_owners(e: Env) -> Map<u32, Address> {
+        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        owners
+    }
+
+    pub fn get_token_uris(e: Env) -> Map<u32, String> {
+        let token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
+        token_uris
+    }
+
+    pub fn get_td_hashes(e: Env) -> Map<u32, String> {
+        let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
         token_to_doc_hashes
     }
 
@@ -242,7 +322,30 @@ impl PetalDocuments {
     }
 }
 
-// ------------> CURRENT CONTRACT ID = CDZFLWTJUMT6MK57XHWIGSJHOKR4W55MBYXKKSYLS3W2SCAB2IZQTTVO --------------------
+// ------------> CURRENT CONTRACT ID = CDOLH5KFTEZ5ZYR3LZSPYBCSW23BJNBYMSLKF6EFP5SEDTSAPLNFYRTD --------------------
+
+// pubKey = [121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241]
+// message = [ 0, 0, 0, 0, 121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241, 0, 0, 1, 44, 0, 8, 174, 96, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 209, 236, 50, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 6, 115, 105, 103, 110, 101, 114, 0, 0, 0, 0, 1, 0, 0, 0, 4, 116, 101, 115, 116, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 6, 115, 116, 97, 116, 117, 115, 0, 0, 0, 0, 0, 1, 0, 0, 0, 10, 78, 79, 84, 95, 83, 73, 71, 78, 69, 68, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 7, 116, 111, 107, 101, 110, 73, 100, 0, 0, 0, 0, 1, 0, 0, 0, 13, 116, 101, 115, 116, 95, 116, 111, 107, 101, 110, 95, 105, 100, 0, 0, 0, 0, 0, 0 ]
+// signature = [90, 90, 116, 207, 13, 25, 179, 44, 67, 30, 59, 254, 214, 220, 29, 226, 185, 166, 56, 135, 62, 172, 147, 223, 95, 185, 51, 27, 130, 204, 190, 197, 247, 241, 241, 194, 180, 84, 245, 109, 21, 33, 202, 178, 238, 82, 186, 192, 93, 245, 39, 30, 84, 139, 191, 111, 184, 101, 84, 85, 85, 106, 120, 3]
+
+
+
+    // soroban contract deploy \
+    // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+    // --source juico \
+    // --network standalone
+
+    // // // testVerifySignature(e: Env, pubKey: BytesN<32>, message: Bytes, signature: BytesN<64> )
+    // soroban contract invoke \
+    // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+    // --id CB44HZ226IGVVFYOQ5R7S2THMO6ILL6MRIMZ672WOBC4MJSQAF34ZUR4 \
+    //     --source juico \
+    //     --network standalone \
+    //     -- \
+    //     testVerifySignature \
+    //     --pubKey '[121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241]' \
+    //     --message '[225, 83, 85, 106, 167, 56, 28, 124, 125, 166, 175, 228, 172, 185, 61, 39, 46, 28, 72, 250, 76, 97, 114, 23, 156, 255, 187, 236, 168, 107, 40, 48]' \
+    //     --signature '[147, 104, 161, 187, 15, 179, 242, 150, 34, 137, 132, 69, 234, 168, 223, 66, 77, 52, 0, 142, 229, 144, 130, 28, 199, 114, 196, 191, 234, 224, 152, 142, 200, 133, 194, 45, 221, 164, 247, 57, 108, 73, 210, 7, 128, 92, 228, 155, 22, 64, 211, 101, 28, 199, 174, 194, 224, 106, 250, 144, 26, 160, 58, 4]'
 
 //     soroban contract deploy \
 //     --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
@@ -251,26 +354,48 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDZFLWTJUMT6MK57XHWIGSJHOKR4W55MBYXKKSYLS3W2SCAB2IZQTTVO \
+// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
 //     --source juico \
 //     --network standalone \
 //     -- \
-//     getSignatures 
+//     get_token_uris 
+
 
 // soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDZFLWTJUMT6MK57XHWIGSJHOKR4W55MBYXKKSYLS3W2SCAB2IZQTTVO \
+// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
 //     --source juico \
 //     --network standalone \
 //     -- \
-//     safeMint \
-//     --erc721_address CB7OSKDWKBCFNW2CEQI67RFSGWLOIS3EKAXIQDJSIWMPZLDMJ7SHSPRK \
+//     safe_mint \
+//     --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
 //     --to GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
-//     --token_id 1234 \
+//     --token_id 1235 \
 //     --meta_uri "www.help.com" \
-//     --signers '[{"Address": GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM}]' \
-//     --deadline 1679905807890 \
-//     --document_hash '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]'
+//     --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
+//     --deadline 1679905807890\
+//     --document_hash "testinghash"
+
+// soroban contract invoke \
+// --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
+//     --source juico \
+//     --network standalone \
+//     -- \
+//     sign_document \
+//     --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
+//     --user GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
+//     --signature 1235 \
+//     --payload \
+//     -- \
+//         --deadline: 1679905807890 \
+//         --description: "description yo" \
+//         --document_hash: "testinghash" \
+//         --document_uri: "www.help.com" \
+//         --signer: GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM \
+//         --status: 'Signed' \
+//         --token_id: 1235 \
+//         --nonce: 1,
 
 // soroban contract install --wasm ../token/target/wasm32-unknown-unknown/release/petal_documents.wasm \
 //     --source SBS6SYYI2B2POLEUTLHA63SQVK24YAGCV2XPZ5PCVGH2CQPNFGQKNUIE \
@@ -285,6 +410,20 @@ impl PetalDocuments {
 // soroban config identity add test --secret-key
 
 // soroban contract install --wasm ../petal_documents/target/wasm32-unknown-unknown/release/petal_documents.wasm
+
+// soroban contract invoke \
+//     --source-account test \
+//     --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+//     --id 0 \
+//     -- \
+//     safe_mint \
+// --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
+// --to GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
+// --token_id 1234 \
+// --meta_uri "www.help.com" \
+// --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
+// --deadline 1679905807890\
+// --document_hash "testinghash"
 
 // soroban contract invoke \
 //     --source-account test \
