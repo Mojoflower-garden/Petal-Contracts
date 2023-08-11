@@ -26,6 +26,7 @@ use soroban_sdk::{
     log,
     Val,
     Map,
+    Timepoint
 };
 
 // mod erc721 {
@@ -68,6 +69,8 @@ const DEADLINES: Symbol = symbol_short!("DEADLINES");
 const DOCSIGN: Symbol = symbol_short!("DOCSIGN");
 const CREACTION_FEE: Symbol = symbol_short!("crea_fee");
 
+const TEST: Symbol = symbol_short!("TEST");
+
 
 #[contractimpl]
 impl PetalDocuments {
@@ -79,10 +82,16 @@ impl PetalDocuments {
         write_administrator(&e, &admin);
     }
 
-    pub fn sign_document(e: Env, erc721_address: Address, user: Address, signature: BytesN<64>, message: Bytes, payload: SignedMessage) {
+    pub fn sign_document(
+        e: Env, 
+        document_hash: String,
+        signer: Address,
+        status: SignatureStatus,
+        token_id: u32,
+    ) -> Map<u32, Map<Address, SignatureStatus>> {
         // let client = erc721::Client::new(&e, &erc721_address);
         // let is_token_minted: bool = client.require_minted(&payload.token_id);
-        let is_token_minted: bool = Self::require_minted(&e, payload.token_id);
+        let is_token_minted: bool = Self::require_minted(&e, token_id);
         if is_token_minted == false {
             panic!("ERC721: invalid token ID")
         }
@@ -90,11 +99,12 @@ impl PetalDocuments {
         if doc_signings.is_empty() {
             panic!("Document signings is empty")
         }
-        let clone_signer = payload.signer.clone();
-        let all_signings = doc_signings.get(payload.token_id);
-        let signer_status = match all_signings {
+
+        let clone_signer = signer.clone();
+        let all_signings = doc_signings.get(token_id);
+        let signer_status: SignatureStatus = match all_signings {
             Some(signing) => {
-                let is_signer = signing.get(payload.signer);
+                let is_signer = signing.get(signer);
                 match is_signer {
                     Some(signer) => {
                         if signer == SignatureStatus::NotASigner {
@@ -113,16 +123,16 @@ impl PetalDocuments {
                 panic!("Document signings is empty");
             }
         };
-
+        
         let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
         if token_to_doc_hashes.is_empty() {
             panic!("Document hashes is empty")
         }
 
-        let doc_hash = token_to_doc_hashes.get(payload.token_id);
+        let doc_hash = token_to_doc_hashes.get(token_id);
         let matched_hash = match doc_hash {
             Some(hash) => {
-                if (hash != payload.document_hash) {
+                if (hash != document_hash) {
                     panic!("The document hash must match the hash of the token document.")
                 }
                 hash
@@ -136,8 +146,8 @@ impl PetalDocuments {
         if doc_signing_deadlines.is_empty() {
             panic!("Document deadlines is empty")
         }
-        let deadlines = doc_signing_deadlines.get(payload.token_id);
-        let deadline = match deadlines {
+        let deadlines: Option<u64> = doc_signing_deadlines.get(token_id);
+        let deadline: u64 = match deadlines {
             Some(v) => {
                 if e.ledger().timestamp() > v {
                     panic!("Document's deadline passed - 410")
@@ -147,60 +157,53 @@ impl PetalDocuments {
             None => {
                 panic!("Deadline not found")
             }
-        };
-        
-        
+        };  
 
-        // e.crypto().ed25519_verify(&user, &message, &signature);
+        let clone_signer_2 = clone_signer.clone();
+        Self::verify_signer(&e, clone_signer, token_id);
 
-        // EQUIVALENT TO SOLIDITY
-        // THIS MEANS THAT USE HAVE SEEN THE CONTRACT AND DATA AND SIGNS IT TO AGREE -> THERE IS NO STELLAR SOROBAN EQUIVALENT TO THIS STANDARD
-        // bytes32 digest = _hashTypedDataV4(
-		// 	keccak256(
-		// 		abi.encode(
-		// 			keccak256(
-		// 				'signedMessage(uint256 deadline,string description,bytes32 documentHash,string documentUri,address signer,uint8 status,uint256 tokenId,uint256 nonce)'
-		// 			),
-		// 			payload.deadline,
-		// 			keccak256(abi.encodePacked(payload.description)), // https://ethereum.stackexchange.com/questions/131282/ethers-eip712-wont-work-with-strings
-		// 			payload.documentHash,
-		// 			keccak256(abi.encodePacked(payload.documentUri)),
-		// 			payload.signer,
-		// 			payload.status,
-		// 			payload.tokenId,
-		// 			signatureNonces[payload.signer]
-		// 		)
-		// 	)
-		// );
-		// address signer = ECDSA.recover(digest, signature);
-        // require(signer == payload.signer, 'Invalid signature - 401');
-		// require(signer != address(0), 'Invalid signature - 401');
-
-        if e.ledger().timestamp() > payload.deadline {
+        if e.ledger().timestamp() > deadline {
             panic!("Signature expired")
         };
-        let clone_signer_2 = clone_signer.clone();
+ 
         let clone_signer_3 = clone_signer_2.clone();
+        let clone_signer_4 = clone_signer_3.clone();
         let mut signature_nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
-        let last_nonce = signature_nonces.get(clone_signer).unwrap_or(0);
+        let last_nonce = signature_nonces.get(clone_signer_4).unwrap_or(0);
         if signature_nonces.is_empty() {
             signature_nonces.set(clone_signer_2, last_nonce);
         } else {
             signature_nonces.set(clone_signer_2, last_nonce + 1);
         }
-
-        doc_signings.get(payload.token_id).unwrap().set(clone_signer_3, payload.status);
+        let status_copy = status.clone();
+        doc_signings.get(token_id).unwrap().set(clone_signer_3, status);
         e.storage().instance().set(&DOCSIGN, &doc_signings);
         e.storage().instance().bump(34560);
+
+        doc_signings
     }
 
-    pub fn testVerifySignature(e: Env, pubKey: BytesN<32>, message: Bytes, signature: BytesN<64> ) -> u32 {
-        e.crypto().ed25519_verify(&pubKey, &message, &signature);
-        log!(&e, "Passed this point. Message Verified!");
-        3
+
+    fn verify_signer(
+        e: &Env,
+        signer: Address,
+        token_id: u32,
+    ) -> bool {
+        signer.require_auth();
+
+        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> =
+            e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let mut inner_doc_signings: Map<Address, SignatureStatus> =
+            doc_signings.get(token_id).unwrap();
+        let mut current_signature_status: SignatureStatus = inner_doc_signings.get(signer).unwrap();
+
+        if (current_signature_status != SignatureStatus::Waiting) {
+            panic!("This signer has already signed");
+        }
+        true
     }
 
-    pub fn safe_mint(e: Env, erc721_address: Address, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: String, deadline: u64) -> u32 {
+    pub fn safe_mint(e: Env, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: String, deadline: u64) -> u32 {
         // IMPLEMENT THIS LIKE IN SOLIDITY PETAL DOCUMENTS CONTRACT
         //		require(
 		// 	msg.value >= creationFee || owner() == msg.sender,
@@ -285,15 +288,28 @@ impl PetalDocuments {
         } 
         return false
     }
+    
+    pub fn set_test_int(e: Env) {
+        let test_int: u32 = e.storage().instance().get(&TEST).unwrap_or(0);
+        let bump: u32 = test_int + 1;
+        e.storage().instance().set(&TEST, &bump);
+    }
+
+    pub fn get_test_int(e: Env) -> u32 {
+        let test_int: u32 = e.storage().instance().get(&TEST).unwrap_or(0);
+        test_int
+    }
 
     pub fn get_admin(e: Env) -> Address {
         let admin = read_administrator(&e);
         admin
     }
 
-    pub fn get_nonces(e: Env) -> Map<Address, u32> {
+    pub fn get_nonces(e: Env, user: Address) -> u32 {
         let nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
-        nonces
+        let user_nonce = nonces.get(user).unwrap_or(0);
+        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        user_nonce
     }
 
     pub fn get_owners(e: Env) -> Map<u32, Address> {
@@ -322,123 +338,56 @@ impl PetalDocuments {
     }
 }
 
-// ------------> CURRENT CONTRACT ID = CDOLH5KFTEZ5ZYR3LZSPYBCSW23BJNBYMSLKF6EFP5SEDTSAPLNFYRTD --------------------
+// ------------> FUTURENET CONTRACT ID = CBKI4525SY3DYQXLLYWFHCUOLGFZXYECAAL2C5D2VXNLMRJC7NJMAL6N --------------------
 
-// pubKey = [121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241]
-// message = [ 0, 0, 0, 0, 121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241, 0, 0, 1, 44, 0, 8, 174, 96, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 209, 236, 50, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 6, 115, 105, 103, 110, 101, 114, 0, 0, 0, 0, 1, 0, 0, 0, 4, 116, 101, 115, 116, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 6, 115, 116, 97, 116, 117, 115, 0, 0, 0, 0, 0, 1, 0, 0, 0, 10, 78, 79, 84, 95, 83, 73, 71, 78, 69, 68, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 7, 116, 111, 107, 101, 110, 73, 100, 0, 0, 0, 0, 1, 0, 0, 0, 13, 116, 101, 115, 116, 95, 116, 111, 107, 101, 110, 95, 105, 100, 0, 0, 0, 0, 0, 0 ]
-// signature = [90, 90, 116, 207, 13, 25, 179, 44, 67, 30, 59, 254, 214, 220, 29, 226, 185, 166, 56, 135, 62, 172, 147, 223, 95, 185, 51, 27, 130, 204, 190, 197, 247, 241, 241, 194, 180, 84, 245, 109, 21, 33, 202, 178, 238, 82, 186, 192, 93, 245, 39, 30, 84, 139, 191, 111, 184, 101, 84, 85, 85, 106, 120, 3]
-
+// FUTURENET IDENTITY (juico) = GCA4YH7TOW2WUXPZ476I5EFKVLTQFMPXW7UG3GJ7BJTLXZAK226GTATI
 
 
     // soroban contract deploy \
     // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
     // --source juico \
-    // --network standalone
-
-    // // // testVerifySignature(e: Env, pubKey: BytesN<32>, message: Bytes, signature: BytesN<64> )
-    // soroban contract invoke \
-    // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-    // --id CB44HZ226IGVVFYOQ5R7S2THMO6ILL6MRIMZ672WOBC4MJSQAF34ZUR4 \
-    //     --source juico \
-    //     --network standalone \
-    //     -- \
-    //     testVerifySignature \
-    //     --pubKey '[121, 149, 162, 22, 5, 154, 125, 213, 68, 40, 244, 187, 139, 11, 229, 176, 124, 56, 209, 54, 247, 190, 119, 249, 142, 36, 6, 202, 12, 216, 10, 241]' \
-    //     --message '[225, 83, 85, 106, 167, 56, 28, 124, 125, 166, 175, 228, 172, 185, 61, 39, 46, 28, 72, 250, 76, 97, 114, 23, 156, 255, 187, 236, 168, 107, 40, 48]' \
-    //     --signature '[147, 104, 161, 187, 15, 179, 242, 150, 34, 137, 132, 69, 234, 168, 223, 66, 77, 52, 0, 142, 229, 144, 130, 28, 199, 114, 196, 191, 234, 224, 152, 142, 200, 133, 194, 45, 221, 164, 247, 57, 108, 73, 210, 7, 128, 92, 228, 155, 22, 64, 211, 101, 28, 199, 174, 194, 224, 106, 250, 144, 26, 160, 58, 4]'
-
-//     soroban contract deploy \
-//     --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-//     --source juico \
-//     --network standalone
+    // --network futurenet
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
+// --id CCNQCAKXQFZDBENSVDNJDKUGDJWBZ2SJCXQCXT4735BCMP4TCZU7SAO6 \
 //     --source juico \
-//     --network standalone \
+//     --network futurenet \
 //     -- \
-//     get_token_uris 
+//     get_nonces \
+//     --user GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5
 
-
-// soroban contract invoke \
+//     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
+// --id CAP54PUK63Q2AT3WRUR35KTXHCYLIMEGAQZRYQZOSF5OFUMJDBLQJLDM \
 //     --source juico \
-//     --network standalone \
+//     --network futurenet \
 //     -- \
-//     safe_mint \
-//     --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
-//     --to GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
-//     --token_id 1235 \
-//     --meta_uri "www.help.com" \
-//     --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
-//     --deadline 1679905807890\
-//     --document_hash "testinghash"
+//     get_signatures 
 
-// soroban contract invoke \
+//     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDCUDM6YVA5MJFUTWVZLRXAL5CR35RYGUYBXKCAWWILV3B2B3P6AZYLR \
+// --id CB7CEPSI2VGBKU63WGGOJ73EG2BEZJICYSGCPMGQK25DJKTBGR2GRV2N \
 //     --source juico \
-//     --network standalone \
+//     --network futurenet \
 //     -- \
 //     sign_document \
-//     --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
-//     --user GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
-//     --signature 1235 \
-//     --payload \
-//     -- \
-//         --deadline: 1679905807890 \
-//         --description: "description yo" \
-//         --document_hash: "testinghash" \
-//         --document_uri: "www.help.com" \
-//         --signer: GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM \
-//         --status: 'Signed' \
-//         --token_id: 1235 \
-//         --nonce: 1,
-
-// soroban contract install --wasm ../token/target/wasm32-unknown-unknown/release/petal_documents.wasm \
-//     --source SBS6SYYI2B2POLEUTLHA63SQVK24YAGCV2XPZ5PCVGH2CQPNFGQKNUIE \
-//     --rpc-url http://localhost:8000/soroban/rpc \
-//     --network-passphrase 'Standalone Network ; February 2017'
-
-
-
-// LOCAL
-
-// FIRST INSTALL IDENTITY PASSING IN SECRET KEY
-// soroban config identity add test --secret-key
-
-// soroban contract install --wasm ../petal_documents/target/wasm32-unknown-unknown/release/petal_documents.wasm
+//         --user GB4ZLIQWAWNH3VKEFD2LXCYL4WYHYOGRG333457ZRYSANSQM3AFPCX7E \
+//         --document_hash "hash1" \
+//         --signer GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM \
+//         --status "Signed" \
+//         --token_id 1
 
 // soroban contract invoke \
-//     --source-account test \
-//     --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-//     --id 0 \
+// --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+// --id CB7CEPSI2VGBKU63WGGOJ73EG2BEZJICYSGCPMGQK25DJKTBGR2GRV2N \
+//     --source juico \
+//     --network futurenet \
 //     -- \
 //     safe_mint \
-// --erc721_address CCO42P3BKGQTZGVHWTK5EUS4R7OR7RHUUPH3PHQJKXLGJZP34INQJMIT \
-// --to GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
-// --token_id 1234 \
-// --meta_uri "www.help.com" \
-// --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
-// --deadline 1679905807890\
-// --document_hash "testinghash"
-
-// soroban contract invoke \
-//     --source-account test \
-//     --wasm target/wasm32-unknown-unknown/release/petal_deployer_contract.wasm \
-//     --id 0 \
-//     -- \
-//     deploy \
-//     --salt 0000000000000000000000000000000000000000000000000000000000000003 \
-//     --wasm_hash f48c446b96a2cb599860998e6489a7b8235ab20e4ea440ee4b512dc85ddfdfa5 \
-//     --init_fn init \
-//     --init_args '[{"vec":[{"string": "test"}, {"string": "test2"}]}]' \
-//     --deployer GBCEL3EZJTX7J5JXVMPKXMXWEWUQXMUZJBT3G3ABX7AXVC652HHIWDIK
-
-// soroban contract invoke \
-//     --source-account test \
-//     --id CAJLVVVSO2MOTFMSUWOU4ELRJSFCFNSOWFAI6OGLPSXT6PWJ65DON2HO \
-//     -- \
-//     value
+//     --to GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5 \
+//     --token_id 1 \
+//     --meta_uri "test1" \
+//     --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
+//     --deadline 1691923773\
+//     --document_hash "hash1"
