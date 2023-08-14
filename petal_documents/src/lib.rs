@@ -114,7 +114,7 @@ impl PetalDocuments {
         // let is_token_minted: bool = client.require_minted(&payload.token_id);
         let is_token_minted: bool = Self::require_minted(&e, token_id);
         if is_token_minted == false {
-            Err(Error::TokenNotMinted)
+            panic_with_error!(&e, Error::TokenNotMinted)
         }
         let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
         if doc_signings.is_empty() {
@@ -377,7 +377,7 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CCNQCAKXQFZDBENSVDNJDKUGDJWBZ2SJCXQCXT4735BCMP4TCZU7SAO6 \
+// --id CDFNKQNXXQQ5THN2ORUVVBURFV4XHBQLQEGZ2ERBYLZZFW2U4ON2NO23 \
 //     --source juico \
 //     --network futurenet \
 //     -- \
@@ -387,10 +387,10 @@ impl PetalDocuments {
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
 // --id CDFNKQNXXQQ5THN2ORUVVBURFV4XHBQLQEGZ2ERBYLZZFW2U4ON2NO23 \
-//     --source nalnir \
+//     --source juico \
 //     --network futurenet \
 //     -- \
-//     get_token_uris 
+//     get_signatures 
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
