@@ -15,6 +15,8 @@ use soroban_sdk::{
     contract, 
     contractimpl, 
     contracttype, 
+    contracterror,
+    panic_with_error,
     symbol_short, 
     Env, 
     Symbol, 
@@ -24,9 +26,7 @@ use soroban_sdk::{
     BytesN, 
     Bytes,
     log,
-    Val,
     Map,
-    Timepoint
 };
 
 // mod erc721 {
@@ -37,6 +37,27 @@ use soroban_sdk::{
 
 #[contract]
 pub struct PetalDocuments;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    TokenNotMinted = 1,
+    DocumentSigningsIsEmpty = 2,
+    NotASigner = 3,
+    AlreadySigned = 4,
+    SignerDoesNotExist = 5,
+    DocumentHashesIsEmpty = 6,
+    DocumentHashesDoesNotMatchTokenHash = 7,
+    HashNotFound = 8,
+    DeadlinesIsEmpty = 9,
+    DeadlinePassed = 10,
+    DeadlineNotFound = 11,
+    SignatureExpired = 12,
+    TokenAlreadyMinted = 13,
+    TokenDoesNotExist = 14,
+    SignersListEmpty = 15
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[contracttype]
@@ -88,16 +109,16 @@ impl PetalDocuments {
         signer: Address,
         status: SignatureStatus,
         token_id: u32,
-    ) -> Map<u32, Map<Address, SignatureStatus>> {
+    ) -> Result<Map<u32, Map<Address, SignatureStatus>>, Error> {
         // let client = erc721::Client::new(&e, &erc721_address);
         // let is_token_minted: bool = client.require_minted(&payload.token_id);
         let is_token_minted: bool = Self::require_minted(&e, token_id);
         if is_token_minted == false {
-            panic!("ERC721: invalid token ID")
+            panic_with_error!(&e, Error::TokenNotMinted)
         }
         let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
         if doc_signings.is_empty() {
-            panic!("Document signings is empty")
+            panic_with_error!(&e, Error::DocumentSigningsIsEmpty)
         }
 
         let clone_signer = signer.clone();
@@ -108,54 +129,54 @@ impl PetalDocuments {
                 match is_signer {
                     Some(signer) => {
                         if signer == SignatureStatus::NotASigner {
-                            panic!("Not a signer - 401");
+                            panic_with_error!(&e, Error::NotASigner)
                         } else if signer == SignatureStatus::Signed {
-                            panic!("Signer has already signed - 401");
+                            panic_with_error!(&e, Error::AlreadySigned)
                         }
                         signer
                     },
                     None => {
-                        panic!("Signer does not exist");
+                        panic_with_error!(&e, Error::SignerDoesNotExist)
                     }
                 }
             },
             None => {
-                panic!("Document signings is empty");
+                panic_with_error!(&e, Error::DocumentSigningsIsEmpty)
             }
         };
         
         let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
         if token_to_doc_hashes.is_empty() {
-            panic!("Document hashes is empty")
+            panic_with_error!(&e, Error::DocumentHashesIsEmpty)
         }
 
         let doc_hash = token_to_doc_hashes.get(token_id);
         let matched_hash = match doc_hash {
             Some(hash) => {
                 if (hash != document_hash) {
-                    panic!("The document hash must match the hash of the token document.")
+                    panic_with_error!(&e, Error::DocumentHashesDoesNotMatchTokenHash)
                 }
                 hash
             },
             None => {
-                panic!("Hash not found")
+                panic_with_error!(&e, Error::HashNotFound)
             }
         };
 
         let doc_signing_deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
         if doc_signing_deadlines.is_empty() {
-            panic!("Document deadlines is empty")
+            panic_with_error!(&e, Error::DeadlinesIsEmpty)
         }
         let deadlines: Option<u64> = doc_signing_deadlines.get(token_id);
         let deadline: u64 = match deadlines {
             Some(v) => {
                 if e.ledger().timestamp() > v {
-                    panic!("Document's deadline passed - 410")
+                    panic_with_error!(&e, Error::DeadlinePassed)
                 }
                 v
             },
             None => {
-                panic!("Deadline not found")
+                panic_with_error!(&e, Error::DeadlineNotFound)
             }
         };  
 
@@ -163,7 +184,7 @@ impl PetalDocuments {
         Self::verify_signer(&e, clone_signer, token_id);
 
         if e.ledger().timestamp() > deadline {
-            panic!("Signature expired")
+            panic_with_error!(&e, Error::SignatureExpired)
         };
  
         let clone_signer_3 = clone_signer_2.clone();
@@ -176,11 +197,16 @@ impl PetalDocuments {
             signature_nonces.set(clone_signer_2, last_nonce + 1);
         }
         let status_copy = status.clone();
-        doc_signings.get(token_id).unwrap().set(clone_signer_3, status);
+        // doc_signings.get(token_id).unwrap().set(clone_signer_3, status);
+        let mut inner_signings: Map<Address, SignatureStatus> = doc_signings.get(token_id).unwrap();
+        // inner_signings.set(clone_signer_3, SignatureStatus::Signed);
+        inner_signings.set(clone_signer_3, status);
+        doc_signings.set(token_id, inner_signings);
+
         e.storage().instance().set(&DOCSIGN, &doc_signings);
         e.storage().instance().bump(34560);
 
-        doc_signings
+        Ok(doc_signings)
     }
 
 
@@ -188,7 +214,7 @@ impl PetalDocuments {
         e: &Env,
         signer: Address,
         token_id: u32,
-    ) -> bool {
+    ) {
         signer.require_auth();
 
         let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> =
@@ -198,9 +224,8 @@ impl PetalDocuments {
         let mut current_signature_status: SignatureStatus = inner_doc_signings.get(signer).unwrap();
 
         if (current_signature_status != SignatureStatus::Waiting) {
-            panic!("This signer has already signed");
+            panic_with_error!(&e, Error::AlreadySigned)
         }
-        true
     }
 
     pub fn safe_mint(e: Env, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: String, deadline: u64) -> u32 {
@@ -211,9 +236,8 @@ impl PetalDocuments {
 		// );
 
         if signers.is_empty() {
-            panic!("Must have some signers for each document");
+            panic_with_error!(&e, Error::SignersListEmpty)
         }
-        log!(&e, "Hello");
         // let client = erc721::Client::new(&e, &erc721_address);
         // client.mint(&token_id, &to);
         // client.set_token_uri(&token_id, &meta_uri);
@@ -247,13 +271,9 @@ impl PetalDocuments {
         // New Token id should be incremented by 1 and not injected as param.
 
         let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
-        log!(&e, "Owners {}", owners);
-
         if exists(&e, token_id, &owners) == true {
-            panic!("Token already minted!");
+            panic_with_error!(&e, Error::TokenAlreadyMinted)
         }
-        log!(&e, "Token does not exists {}", token_id);
-
         let cloned_to = to.clone();
 
         owners.set(token_id, to);
@@ -270,7 +290,7 @@ impl PetalDocuments {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
 
         if exists(&e, token_id, &owners) == false {
-            panic!("ERC721URIStorage: URI set of nonexistent token");
+            panic_with_error!(&e, Error::TokenDoesNotExist)
         }
 
         let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
@@ -338,14 +358,21 @@ impl PetalDocuments {
     }
 }
 
-// ------------> FUTURENET CONTRACT ID = CBKI4525SY3DYQXLLYWFHCUOLGFZXYECAAL2C5D2VXNLMRJC7NJMAL6N --------------------
+// ------------> FUTURENET CONTRACT ID = CCAVDZAT7AGVWA3UDLAG5ZDZYXAVUHKHCXC3FNXXPFEY3TLSHM55E6UD --------------------
 
 // FUTURENET IDENTITY (juico) = GCA4YH7TOW2WUXPZ476I5EFKVLTQFMPXW7UG3GJ7BJTLXZAK226GTATI
+
+// docker run --rm -it \
+// -p 8000:8000 \
+// --name stellar \
+// stellar/quickstart:soroban-dev@sha256:ed57f7a7683e3568ae401f5c6e93341a9f77d8ad41191bf752944d7898981e0c \
+// --futurenet \
+// --enable-soroban-rpc
 
 
     // soroban contract deploy \
     // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-    // --source juico \
+    // --source bob \
     // --network futurenet
 
 //     soroban contract invoke \
@@ -359,7 +386,7 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CAP54PUK63Q2AT3WRUR35KTXHCYLIMEGAQZRYQZOSF5OFUMJDBLQJLDM \
+// --id CCAVDZAT7AGVWA3UDLAG5ZDZYXAVUHKHCXC3FNXXPFEY3TLSHM55E6UD \
 //     --source juico \
 //     --network futurenet \
 //     -- \
