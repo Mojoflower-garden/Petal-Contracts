@@ -16,17 +16,14 @@ use soroban_sdk::{
     contractimpl, 
     contracttype, 
     contracterror,
-    panic_with_error,
     symbol_short, 
     Env, 
     Symbol, 
     Vec, 
     Address, 
     String, 
-    BytesN, 
-    Bytes,
     log,
-    Map,
+    Map, panic_with_error,
 };
 
 // mod erc721 {
@@ -109,7 +106,7 @@ impl PetalDocuments {
         signer: Address,
         status: SignatureStatus,
         token_id: u32,
-    ) -> Result<Map<u32, Map<Address, SignatureStatus>>, Error> {
+    ) -> Map<u32, Map<Address, SignatureStatus>> {
         // let client = erc721::Client::new(&e, &erc721_address);
         // let is_token_minted: bool = client.require_minted(&payload.token_id);
         let is_token_minted: bool = Self::require_minted(&e, token_id);
@@ -206,7 +203,7 @@ impl PetalDocuments {
         e.storage().instance().set(&DOCSIGN, &doc_signings);
         e.storage().instance().bump(34560);
 
-        Ok(doc_signings)
+        doc_signings
     }
 
 
@@ -372,7 +369,7 @@ impl PetalDocuments {
 
     // soroban contract deploy \
     // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-    // --source bob \
+    // --source juico \
     // --network futurenet
 
 //     soroban contract invoke \
@@ -386,11 +383,11 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDFNKQNXXQQ5THN2ORUVVBURFV4XHBQLQEGZ2ERBYLZZFW2U4ON2NO23 \
+// --id CBMG4ZYIOSU64S7DKBGMMZSVUZUATXKMKMKFIJTYAOTRYYMZCOSW5LWE \
 //     --source juico \
 //     --network futurenet \
 //     -- \
-//     get_signatures 
+//     get_token_uris 
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
