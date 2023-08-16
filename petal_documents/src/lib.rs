@@ -4,7 +4,7 @@ mod storage_types;
 use crate::storage_types::INSTANCE_BUMP_AMOUNT;
 
 mod erc_functions;
-use crate::erc_functions::{exists};
+use crate::erc_functions::exists;
 
 mod event;
 
@@ -12,18 +12,8 @@ mod admin;
 use crate::admin::{has_administrator, read_administrator, write_administrator};
 
 use soroban_sdk::{
-    contract, 
-    contractimpl, 
-    contracttype, 
-    contracterror,
-    symbol_short, 
-    Env, 
-    Symbol, 
-    Vec, 
-    Address, 
-    String, 
-    log,
-    Map, panic_with_error,
+    contract, contracterror, contractimpl, contracttype, log, panic_with_error, symbol_short,
+    Address, Env, Map, String, Symbol, Vec,
 };
 
 // mod erc721 {
@@ -53,7 +43,7 @@ pub enum Error {
     SignatureExpired = 12,
     TokenAlreadyMinted = 13,
     TokenDoesNotExist = 14,
-    SignersListEmpty = 15
+    SignersListEmpty = 15,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,7 +52,7 @@ pub enum SignatureStatus {
     NotASigner,
     Rejected,
     Signed,
-    Waiting
+    Waiting,
 }
 
 #[derive(Clone, Debug)]
@@ -89,7 +79,6 @@ const CREACTION_FEE: Symbol = symbol_short!("crea_fee");
 
 const TEST: Symbol = symbol_short!("TEST");
 
-
 #[contractimpl]
 impl PetalDocuments {
     pub fn init(e: Env, admin: Address, token_id: u32) {
@@ -101,7 +90,7 @@ impl PetalDocuments {
     }
 
     pub fn sign_document(
-        e: Env, 
+        e: Env,
         document_hash: String,
         signer: Address,
         status: SignatureStatus,
@@ -113,7 +102,11 @@ impl PetalDocuments {
         if is_token_minted == false {
             panic_with_error!(&e, Error::TokenNotMinted)
         }
-        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+            .storage()
+            .persistent()
+            .get(&DOCSIGN)
+            .unwrap_or(Map::new(&e));
         if doc_signings.is_empty() {
             panic_with_error!(&e, Error::DocumentSigningsIsEmpty)
         }
@@ -131,18 +124,22 @@ impl PetalDocuments {
                             panic_with_error!(&e, Error::AlreadySigned)
                         }
                         signer
-                    },
+                    }
                     None => {
                         panic_with_error!(&e, Error::SignerDoesNotExist)
                     }
                 }
-            },
+            }
             None => {
                 panic_with_error!(&e, Error::DocumentSigningsIsEmpty)
             }
         };
-        
-        let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+
+        let token_to_doc_hashes: Map<u32, String> = e
+            .storage()
+            .persistent()
+            .get(&T2DHASH)
+            .unwrap_or(Map::new(&e));
         if token_to_doc_hashes.is_empty() {
             panic_with_error!(&e, Error::DocumentHashesIsEmpty)
         }
@@ -154,13 +151,17 @@ impl PetalDocuments {
                     panic_with_error!(&e, Error::DocumentHashesDoesNotMatchTokenHash)
                 }
                 hash
-            },
+            }
             None => {
                 panic_with_error!(&e, Error::HashNotFound)
             }
         };
 
-        let doc_signing_deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
+        let doc_signing_deadlines: Map<u32, u64> = e
+            .storage()
+            .persistent()
+            .get(&DEADLINES)
+            .unwrap_or(Map::new(&e));
         if doc_signing_deadlines.is_empty() {
             panic_with_error!(&e, Error::DeadlinesIsEmpty)
         }
@@ -171,11 +172,11 @@ impl PetalDocuments {
                     panic_with_error!(&e, Error::DeadlinePassed)
                 }
                 v
-            },
+            }
             None => {
                 panic_with_error!(&e, Error::DeadlineNotFound)
             }
-        };  
+        };
 
         let clone_signer_2 = clone_signer.clone();
         Self::verify_signer(&e, clone_signer, token_id);
@@ -183,10 +184,14 @@ impl PetalDocuments {
         if e.ledger().timestamp() > deadline {
             panic_with_error!(&e, Error::SignatureExpired)
         };
- 
+
         let clone_signer_3 = clone_signer_2.clone();
         let clone_signer_4 = clone_signer_3.clone();
-        let mut signature_nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
+        let mut signature_nonces: Map<Address, u32> = e
+            .storage()
+            .persistent()
+            .get(&NONCES)
+            .unwrap_or(Map::new(&e));
         let last_nonce = signature_nonces.get(clone_signer_4).unwrap_or(0);
         if signature_nonces.is_empty() {
             signature_nonces.set(clone_signer_2, last_nonce);
@@ -200,22 +205,20 @@ impl PetalDocuments {
         inner_signings.set(clone_signer_3, status);
         doc_signings.set(token_id, inner_signings);
 
-        e.storage().instance().set(&DOCSIGN, &doc_signings);
-        e.storage().instance().bump(34560);
+        e.storage().persistent().set(&DOCSIGN, &doc_signings);
+        // e.storage().persistent().bump(34560);
 
         doc_signings
     }
 
-
-    fn verify_signer(
-        e: &Env,
-        signer: Address,
-        token_id: u32,
-    ) {
+    fn verify_signer(e: &Env, signer: Address, token_id: u32) {
         signer.require_auth();
 
-        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> =
-            e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+            .storage()
+            .persistent()
+            .get(&DOCSIGN)
+            .unwrap_or(Map::new(&e));
         let mut inner_doc_signings: Map<Address, SignatureStatus> =
             doc_signings.get(token_id).unwrap();
         let mut current_signature_status: SignatureStatus = inner_doc_signings.get(signer).unwrap();
@@ -225,12 +228,20 @@ impl PetalDocuments {
         }
     }
 
-    pub fn safe_mint(e: Env, to: Address, token_id: u32, meta_uri: String, signers: Vec<Address>, document_hash: String, deadline: u64) -> u32 {
+    pub fn safe_mint(
+        e: Env,
+        to: Address,
+        token_id: u32,
+        meta_uri: String,
+        signers: Vec<Address>,
+        document_hash: String,
+        deadline: u64,
+    ) -> u32 {
         // IMPLEMENT THIS LIKE IN SOLIDITY PETAL DOCUMENTS CONTRACT
         //		require(
-		// 	msg.value >= creationFee || owner() == msg.sender,
-		// 	'Creation fee not met'
-		// );
+        // 	msg.value >= creationFee || owner() == msg.sender,
+        // 	'Creation fee not met'
+        // );
 
         if signers.is_empty() {
             panic_with_error!(&e, Error::SignersListEmpty)
@@ -242,32 +253,50 @@ impl PetalDocuments {
         Self::mint(&e, token_id, to);
         Self::set_token_uri(&e, token_id, meta_uri);
 
-        let mut token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+        let mut token_to_doc_hashes: Map<u32, String> = e
+            .storage()
+            .persistent()
+            .get(&T2DHASH)
+            .unwrap_or(Map::new(&e));
         token_to_doc_hashes.set(token_id, document_hash);
 
-        let mut doc_signing_deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
+        let mut doc_signing_deadlines: Map<u32, u64> = e
+            .storage()
+            .persistent()
+            .get(&DEADLINES)
+            .unwrap_or(Map::new(&e));
         doc_signing_deadlines.set(token_id, deadline);
-        
-        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+
+        let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+            .storage()
+            .persistent()
+            .get(&DOCSIGN)
+            .unwrap_or(Map::new(&e));
         let mut inner_doc_signings: Map<Address, SignatureStatus> = Map::new(&e);
 
         for signer in signers.iter() {
             inner_doc_signings.set(signer, SignatureStatus::Waiting);
-        };
+        }
         doc_signings.set(token_id, inner_doc_signings);
 
-        e.storage().instance().set(&T2DHASH, &token_to_doc_hashes);
-        e.storage().instance().set(&DEADLINES, &doc_signing_deadlines);
-        e.storage().instance().set(&DOCSIGN, &doc_signings);
+        e.storage().persistent().set(&T2DHASH, &token_to_doc_hashes);
+        e.storage()
+            .persistent()
+            .set(&DEADLINES, &doc_signing_deadlines);
+        e.storage().persistent().set(&DOCSIGN, &doc_signings);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
         token_id
     }
 
     fn mint(e: &Env, token_id: u32, to: Address) {
         // New Token id should be incremented by 1 and not injected as param.
 
-        let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let mut owners: Map<u32, Address> = e
+            .storage()
+            .persistent()
+            .get(&OWNERS)
+            .unwrap_or(Map::new(&e));
         if exists(&e, token_id, &owners) == true {
             panic_with_error!(&e, Error::TokenAlreadyMinted)
         }
@@ -276,44 +305,52 @@ impl PetalDocuments {
         owners.set(token_id, to);
         log!(&e, "Owners set locally {}", owners);
 
-        e.storage().instance().set(&OWNERS, &owners);
+        e.storage().persistent().set(&OWNERS, &owners);
         log!(&e, "Owners set instance {}", owners);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
         event::mint(&e, &cloned_to, token_id);
     }
 
     fn set_token_uri(e: &Env, token_id: u32, token_uri: String) {
-        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let owners: Map<u32, Address> = e
+            .storage()
+            .persistent()
+            .get(&OWNERS)
+            .unwrap_or(Map::new(&e));
 
         if exists(&e, token_id, &owners) == false {
             panic_with_error!(&e, Error::TokenDoesNotExist)
         }
 
-        let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
+        let mut token_uris: Map<u32, String> =
+            e.storage().persistent().get(&URIS).unwrap_or(Map::new(&e));
         token_uris.set(token_id, token_uri);
 
-        e.storage().instance().set(&URIS, &token_uris);
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().persistent().set(&URIS, &token_uris);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
     }
-
 
     fn require_minted(e: &Env, token_id: u32) -> bool {
-        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let owners: Map<u32, Address> = e
+            .storage()
+            .persistent()
+            .get(&OWNERS)
+            .unwrap_or(Map::new(&e));
         if exists(&e, token_id, &owners) == true {
-            return true
-        } 
-        return false
+            return true;
+        }
+        return false;
     }
-    
+
     pub fn set_test_int(e: Env) {
-        let test_int: u32 = e.storage().instance().get(&TEST).unwrap_or(0);
+        let test_int: u32 = e.storage().persistent().get(&TEST).unwrap_or(0);
         let bump: u32 = test_int + 1;
-        e.storage().instance().set(&TEST, &bump);
+        e.storage().persistent().set(&TEST, &bump);
     }
 
     pub fn get_test_int(e: Env) -> u32 {
-        let test_int: u32 = e.storage().instance().get(&TEST).unwrap_or(0);
+        let test_int: u32 = e.storage().persistent().get(&TEST).unwrap_or(0);
         test_int
     }
 
@@ -323,39 +360,64 @@ impl PetalDocuments {
     }
 
     pub fn get_nonces(e: Env, user: Address) -> u32 {
-        let nonces: Map<Address, u32> = e.storage().instance().get(&NONCES).unwrap_or(Map::new(&e));
+        let nonces: Map<Address, u32> = e
+            .storage()
+            .persistent()
+            .get(&NONCES)
+            .unwrap_or(Map::new(&e));
         let user_nonce = nonces.get(user).unwrap_or(0);
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
         user_nonce
     }
 
     pub fn get_owners(e: Env) -> Map<u32, Address> {
-        let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let owners: Map<u32, Address> = e
+            .storage()
+            .persistent()
+            .get(&OWNERS)
+            .unwrap_or(Map::new(&e));
         owners
     }
 
     pub fn get_token_uris(e: Env) -> Map<u32, String> {
-        let token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
+        let token_uris: Map<u32, String> =
+            e.storage().persistent().get(&URIS).unwrap_or(Map::new(&e));
         token_uris
     }
 
     pub fn get_td_hashes(e: Env) -> Map<u32, String> {
-        let token_to_doc_hashes: Map<u32, String> = e.storage().instance().get(&T2DHASH).unwrap_or(Map::new(&e));
+        let token_to_doc_hashes: Map<u32, String> = e
+            .storage()
+            .persistent()
+            .get(&T2DHASH)
+            .unwrap_or(Map::new(&e));
         token_to_doc_hashes
     }
 
     pub fn get_deadlines(e: Env) -> Map<u32, u64> {
-        let deadlines: Map<u32, u64> = e.storage().instance().get(&DEADLINES).unwrap_or(Map::new(&e));
+        let deadlines: Map<u32, u64> = e
+            .storage()
+            .persistent()
+            .get(&DEADLINES)
+            .unwrap_or(Map::new(&e));
         deadlines
     }
 
     pub fn get_documents(e: Env) -> Map<u32, Map<Address, SignatureStatus>> {
-        let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+            .storage()
+            .persistent()
+            .get(&DOCSIGN)
+            .unwrap_or(Map::new(&e));
         doc_signings
     }
 
     pub fn get_document(e: Env, doc_id: u32) -> Map<Address, SignatureStatus> {
-        let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+            .storage()
+            .persistent()
+            .get(&DOCSIGN)
+            .unwrap_or(Map::new(&e));
         let document = doc_signings.get(doc_id).unwrap_or(Map::new(&e));
         document
     }
@@ -372,11 +434,10 @@ impl PetalDocuments {
 // --futurenet \
 // --enable-soroban-rpc
 
-
-    // soroban contract deploy \
-    // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-    // --source juico \
-    // --network futurenet
+// soroban contract deploy \
+// --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
+// --source juico \
+// --network futurenet
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
@@ -390,10 +451,10 @@ impl PetalDocuments {
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
 // --id CBMG4ZYIOSU64S7DKBGMMZSVUZUATXKMKMKFIJTYAOTRYYMZCOSW5LWE \
-//     --source juico \
+//     --source thor \
 //     --network futurenet \
 //     -- \
-//     get_signatures 
+//     get_signatures
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
