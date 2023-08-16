@@ -349,13 +349,19 @@ impl PetalDocuments {
         deadlines
     }
 
-    pub fn get_signatures(e: Env) -> Map<u32, Map<Address, SignatureStatus>> {
+    pub fn get_documents(e: Env) -> Map<u32, Map<Address, SignatureStatus>> {
         let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
         doc_signings
     }
+
+    pub fn get_document(e: Env, doc_id: u32) -> Map<Address, SignatureStatus> {
+        let doc_signings: Map<u32, Map<Address, SignatureStatus>> = e.storage().instance().get(&DOCSIGN).unwrap_or(Map::new(&e));
+        let document = doc_signings.get(doc_id).unwrap_or(Map::new(&e));
+        document
+    }
 }
 
-// ------------> FUTURENET CONTRACT ID = CDFNKQNXXQQ5THN2ORUVVBURFV4XHBQLQEGZ2ERBYLZZFW2U4ON2NO23 --------------------
+// ------------> FUTURENET CONTRACT ID = CCX7XGMKI6MERSDZXMUTHHWTPNKRBMFKSKR2ZA4DQ6WCAUSNZVZEVJZG --------------------
 
 // FUTURENET IDENTITY (juico) = GCA4YH7TOW2WUXPZ476I5EFKVLTQFMPXW7UG3GJ7BJTLXZAK226GTATI
 
@@ -374,12 +380,12 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CDFNKQNXXQQ5THN2ORUVVBURFV4XHBQLQEGZ2ERBYLZZFW2U4ON2NO23 \
+// --id CD4CHM3LQVA3QRM5UEMW7FW26BLOFZKCHR6ZWUV4FQ2T22ZGKJ2U2ULM \
 //     --source juico \
 //     --network futurenet \
 //     -- \
-//     get_nonces \
-//     --user GDOB4GMX45VENP4YMUQMH4ZJ6KJZTERQVOASFTXC7OMOZM5EFKPFU4X5
+//     get_document \
+//     --doc_id 18
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
@@ -387,7 +393,7 @@ impl PetalDocuments {
 //     --source juico \
 //     --network futurenet \
 //     -- \
-//     get_token_uris 
+//     get_signatures 
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
