@@ -385,6 +385,13 @@ impl PetalDocuments {
         token_uris
     }
 
+    pub fn get_token_uri(e: Env, doc_id: u32) -> String {
+        let token_uris: Map<u32, String> =
+            e.storage().persistent().get(&URIS).unwrap_or(Map::new(&e));
+        let token_uri = token_uris.get(doc_id).unwrap();
+        token_uri
+    }
+
     pub fn get_td_hashes(e: Env) -> Map<u32, String> {
         let token_to_doc_hashes: Map<u32, String> = e
             .storage()
@@ -423,7 +430,7 @@ impl PetalDocuments {
     }
 }
 
-// ------------> FUTURENET CONTRACT ID = CCX7XGMKI6MERSDZXMUTHHWTPNKRBMFKSKR2ZA4DQ6WCAUSNZVZEVJZG --------------------
+// ------------> FUTURENET CONTRACT ID = CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --------------------
 
 // FUTURENET IDENTITY (juico) = GCA4YH7TOW2WUXPZ476I5EFKVLTQFMPXW7UG3GJ7BJTLXZAK226GTATI
 
@@ -441,12 +448,12 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CD4CHM3LQVA3QRM5UEMW7FW26BLOFZKCHR6ZWUV4FQ2T22ZGKJ2U2ULM \
+// --id CCX7XGMKI6MERSDZXMUTHHWTPNKRBMFKSKR2ZA4DQ6WCAUSNZVZEVJZG \
 //     --source juico \
 //     --network futurenet \
 //     -- \
 //     get_document \
-//     --doc_id 18
+//     --doc_id 30
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
