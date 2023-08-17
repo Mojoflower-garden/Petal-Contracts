@@ -457,11 +457,11 @@ impl PetalDocuments {
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
-// --id CBMG4ZYIOSU64S7DKBGMMZSVUZUATXKMKMKFIJTYAOTRYYMZCOSW5LWE \
-//     --source thor \
+// --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH \
+//     --source juico \
 //     --network futurenet \
 //     -- \
-//     get_signatures
+//     get_documents
 
 //     soroban contract invoke \
 // --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm \
