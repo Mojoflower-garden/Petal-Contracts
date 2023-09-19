@@ -1,7 +1,9 @@
 #![no_std]
 
 mod storage_types;
-use crate::storage_types::INSTANCE_BUMP_AMOUNT;
+use crate::storage_types::{
+    INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK, INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+};
 
 mod erc_functions;
 use crate::erc_functions::exists;
@@ -285,7 +287,7 @@ impl PetalDocuments {
             .set(&DEADLINES, &doc_signing_deadlines);
         e.storage().persistent().set(&DOCSIGN, &doc_signings);
 
-        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT_LOW_WATERMARK, INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK);
         token_id
     }
 
@@ -308,7 +310,7 @@ impl PetalDocuments {
         e.storage().persistent().set(&OWNERS, &owners);
         log!(&e, "Owners set instance {}", owners);
 
-        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT_LOW_WATERMARK, INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK);
         event::mint(&e, &cloned_to, token_id);
     }
 
@@ -328,7 +330,7 @@ impl PetalDocuments {
         token_uris.set(token_id, token_uri);
 
         e.storage().persistent().set(&URIS, &token_uris);
-        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT_LOW_WATERMARK, INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK);
     }
 
     fn require_minted(e: &Env, token_id: u32) -> bool {
@@ -366,7 +368,7 @@ impl PetalDocuments {
             .get(&NONCES)
             .unwrap_or(Map::new(&e));
         let user_nonce = nonces.get(user).unwrap_or(0);
-        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT);
+        // e.storage().persistent().bump(INSTANCE_BUMP_AMOUNT_LOW_WATERMARK, INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK);
         user_nonce
     }
 
@@ -489,3 +491,8 @@ impl PetalDocuments {
 //     --signers '["GBRVKHUULGOAU2ADSZZKFH2DZBZF2S4PXVEMSE23PPTFZDST464RDHIM"]' \
 //     --deadline 1691923773\
 //     --document_hash "hash1"
+
+// RUST_LOG=trace soroban contract restore --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --source juico --network futurenet --key-xdr AAAAFA==
+// soroban contract restore --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm --source juico --network futurenet
+// RUST_LOG=trace soroban contract invoke --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --source juico --network futurenet -- -h
+// soroban contract fetch --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --network futurenet -o /tmp/swap.wasm

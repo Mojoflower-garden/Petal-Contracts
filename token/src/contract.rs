@@ -4,12 +4,17 @@ use crate::admin::{has_administrator, read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{is_authorized, write_authorization};
 use crate::balance::{read_balance, receive_balance, spend_balance};
+use crate::custom_token_metadata::CustomTokenMetadata;
+use crate::erc_functions::{exists, owner_of};
 use crate::event;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
-use crate::storage_types::INSTANCE_BUMP_AMOUNT;
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Symbol, symbol_short, Map, BytesN, Vec, log};
-use crate::custom_token_metadata::{CustomTokenMetadata};
-use crate::erc_functions::{owner_of, exists};
+use crate::storage_types::{
+    INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK, INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, log, symbol_short, Address, BytesN, Env, Map, String,
+    Symbol, Vec,
+};
 
 pub trait TokenTrait {
     fn initialize(e: Env, admin: Address, token_id: u32);
@@ -85,7 +90,8 @@ impl TokenTrait for Token {
 
         log!(&e, "Admin {}", admin);
 
-        let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let mut owners: Map<u32, Address> =
+            e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
         owners.set(token_id, admin);
         e.storage().instance().set(&OWNERS, &owners);
 
@@ -107,7 +113,10 @@ impl TokenTrait for Token {
     }
 
     fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         read_allowance(&e, from, spender).amount
     }
 
@@ -116,24 +125,36 @@ impl TokenTrait for Token {
 
         check_nonnegative_amount(amount);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger);
         event::approve(&e, from, spender, amount, expiration_ledger);
     }
 
     fn balance(e: Env, id: Address) -> i128 {
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         read_balance(&e, id)
     }
 
     fn spendable_balance(e: Env, id: Address) -> i128 {
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         read_balance(&e, id)
     }
 
     fn authorized(e: Env, id: Address) -> bool {
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         is_authorized(&e, id)
     }
 
@@ -142,7 +163,10 @@ impl TokenTrait for Token {
 
         check_nonnegative_amount(amount);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
@@ -154,7 +178,10 @@ impl TokenTrait for Token {
 
         check_nonnegative_amount(amount);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
@@ -167,7 +194,10 @@ impl TokenTrait for Token {
 
         check_nonnegative_amount(amount);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         spend_balance(&e, from.clone(), amount);
         event::burn(&e, from, amount);
@@ -178,7 +208,10 @@ impl TokenTrait for Token {
 
         check_nonnegative_amount(amount);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
@@ -190,7 +223,10 @@ impl TokenTrait for Token {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         spend_balance(&e, from.clone(), amount);
         event::clawback(&e, admin, from, amount);
@@ -200,7 +236,10 @@ impl TokenTrait for Token {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         write_authorization(&e, id.clone(), authorize);
         event::set_authorized(&e, admin, id, authorize);
@@ -209,9 +248,9 @@ impl TokenTrait for Token {
     fn require_minted(e: Env, token_id: u32) -> bool {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
         if exists(&e, token_id, &owners) == true {
-            return true
-        } 
-        return false
+            return true;
+        }
+        return false;
     }
 
     fn mint(e: Env, token_id: u32, to: Address) {
@@ -220,7 +259,8 @@ impl TokenTrait for Token {
 
         // New Token id should be incremented by 1 and not injected as param.
 
-        let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let mut owners: Map<u32, Address> =
+            e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
         log!(&e, "Owners {}", owners);
 
         if exists(&e, token_id, &owners) == true {
@@ -236,19 +276,26 @@ impl TokenTrait for Token {
         e.storage().instance().set(&OWNERS, &owners);
         log!(&e, "Owners set instance {}", owners);
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         event::mint(&e, &cloned_to, token_id);
     }
 
     fn get_owners(e: Env) -> Map<u32, Address> {
         let owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
         log!(&e, "Owners {}", owners);
         owners
     }
 
     fn set_owners(e: Env, token_id: u32, owner: Address) {
-        let mut owners: Map<u32, Address> = e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
+        let mut owners: Map<u32, Address> =
+            e.storage().instance().get(&OWNERS).unwrap_or(Map::new(&e));
         owners.set(token_id, owner);
         e.storage().instance().set(&OWNERS, &owners);
     }
@@ -257,7 +304,10 @@ impl TokenTrait for Token {
         let admin = read_administrator(&e);
         admin.require_auth();
 
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
 
         write_administrator(&e, &new_admin);
         event::set_admin(&e, admin, new_admin);
@@ -287,15 +337,19 @@ impl TokenTrait for Token {
             panic!("ERC721URIStorage: URI set of nonexistent token");
         }
 
-        let mut token_uris: Map<u32, String> = e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
+        let mut token_uris: Map<u32, String> =
+            e.storage().instance().get(&URIS).unwrap_or(Map::new(&e));
         token_uris.set(token_id, token_uri);
 
         e.storage().instance().set(&URIS, &token_uris);
-        e.storage().instance().bump(INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().bump(
+            INSTANCE_BUMP_AMOUNT_LOW_WATERMARK,
+            INSTANCE_BUMP_AMOUNT_HIGH_WATERMARK,
+        );
     }
 }
 
-//STEPS TO MINT: 
+//STEPS TO MINT:
 // 1. Initialize with admin
 //
 
@@ -347,7 +401,7 @@ impl TokenTrait for Token {
 //     --source juico \
 //     --network standalone \
 //     -- \
-//     get_owners 
+//     get_owners
 
 // soroban contract invoke \
 //     --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
@@ -371,14 +425,14 @@ impl TokenTrait for Token {
 //     --decimal 4 \
 //     --name test \
 //     --symbol TST \
-//     --token_uri www.test.com 
+//     --token_uri www.test.com
 
 // soroban contract invoke \
 //     --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
 //     --id 1 \
 //     -- \
 //     set_admin \
-//     --new_admin GDCBSTFJSOIN5FWZ22AMOBT56AILRZ3Z2UTL6GDYG4OYRWDAWOFA5ZT4 
+//     --new_admin GDCBSTFJSOIN5FWZ22AMOBT56AILRZ3Z2UTL6GDYG4OYRWDAWOFA5ZT4
 
 // soroban contract invoke \
 //     --wasm target/wasm32-unknown-unknown/release-with-logs/soroban_token_contract.wasm \
@@ -399,4 +453,4 @@ impl TokenTrait for Token {
 //     --id 1 \
 //     -- \
 //     set_authorized \
-//     --id GDCBSTFJSOIN5FWZ22AMOBT56AILRZ3Z2UTL6GDYG4OYRWDAWOFA5ZT4 
+//     --id GDCBSTFJSOIN5FWZ22AMOBT56AILRZ3Z2UTL6GDYG4OYRWDAWOFA5ZT4
