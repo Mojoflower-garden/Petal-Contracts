@@ -432,7 +432,7 @@ impl PetalDocuments {
     }
 }
 
-// ------------> FUTURENET CONTRACT ID = CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --------------------
+// ------------> FUTURENET CONTRACT ID = CB6Y74MX2VRQ7C7ITKZM4SOAZOR7MQ3SX2QBJLXP63V43YCYNT46QKMG --------------------
 
 // FUTURENET IDENTITY (juico) = GCA4YH7TOW2WUXPZ476I5EFKVLTQFMPXW7UG3GJ7BJTLXZAK226GTATI
 
@@ -492,7 +492,7 @@ impl PetalDocuments {
 //     --deadline 1691923773\
 //     --document_hash "hash1"
 
-// RUST_LOG=trace soroban contract restore --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --source juico --network futurenet --key-xdr AAAAFA==
+// RUST_LOG=trace soroban contract restore --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --source juico --network futurenet --key-xdr AAAAFA==
 // soroban contract restore --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm --source juico --network futurenet
-// RUST_LOG=trace soroban contract invoke --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --source juico --network futurenet -- -h
-// soroban contract fetch --id CCTF7CMIEWTS6B2DLJL3QRBDD6JBRQCMXP6IBFTPQNR6K4DCSAIAPWGH --network futurenet -o /tmp/swap.wasm
+// RUST_LOG=trace soroban contract invoke --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --source juico --network futurenet -- -h
+// soroban contract fetch --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --network futurenet -o /tmp/swap.wasm
