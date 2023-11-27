@@ -430,6 +430,33 @@ impl PetalDocuments {
         let document = doc_signings.get(doc_id).unwrap_or(Map::new(&e));
         document
     }
+
+    // pub fn add_extra_signers(e: Env, signers: Vec<Address>, doc_id: u32) {
+
+    //     if signers.is_empty() {
+    //         panic_with_error!(&e, Error::SignersListEmpty)
+    //     }
+
+    //     let mut doc_signings: Map<u32, Map<Address, SignatureStatus>> = e
+    //     .storage()
+    //     .persistent()
+    //     .get(&DOCSIGN)
+    //     .unwrap_or(Map::new(&e));
+    //     if doc_signings.is_empty() {
+    //         panic_with_error!(&e, Error::DocumentSigningsIsEmpty)
+    //     }
+
+    //     let mut current_signers: Map<Address, SignatureStatus> = doc_signings.get(doc_id).unwrap_or(Map::new(&e));
+    //     if current_signers.is_empty() {
+    //         panic_with_error!(&e, Error::SignersListEmpty)
+    //     }
+
+    //     for (signer) in signers.iter() {
+    //         let is_signer: SignatureStatus = current_signers.get(signer).unwrap_or_else(pa)
+
+    //     }
+
+    // }
 }
 
 // ------------> FUTURENET CONTRACT ID = CB6Y74MX2VRQ7C7ITKZM4SOAZOR7MQ3SX2QBJLXP63V43YCYNT46QKMG --------------------
@@ -495,4 +522,4 @@ impl PetalDocuments {
 // RUST_LOG=trace soroban contract restore --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --source juico --network futurenet --key-xdr AAAAFA==
 // soroban contract restore --wasm target/wasm32-unknown-unknown/release/petal_documents.wasm --source juico --network futurenet
 // RUST_LOG=trace soroban contract invoke --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --source juico --network futurenet -- -h
-// soroban contract fetch --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --network futurenet -o /tmp/swap.wasm
+// soroban contract fetch --id CCPRKL4P77TK6ZCD2TI74ZKNCIAZFXG52QMPP4F7AV32U5NDBHRD6PRK --network futurenet -o /tmp/swap.wasme
